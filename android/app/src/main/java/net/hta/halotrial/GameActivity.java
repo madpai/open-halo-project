@@ -43,13 +43,11 @@ public class GameActivity extends NativeActivity {
     }
 
     private HudOverlay hud;
-    private boolean exploreExternal;
     private final ShellMenu shell = new ShellMenu(this);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        exploreExternal = getIntent().getIntExtra("explore_external", 0) != 0;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         goFullscreen();
     }
@@ -720,7 +718,7 @@ public class GameActivity extends NativeActivity {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
                 remember(id, x, y);
-                if (!owner.exploreExternal && in(x, y, fireCx, fireCy, fireR * 1.15f) && firePtr < 0) {
+                if (in(x, y, fireCx, fireCy, fireR * 1.15f) && firePtr < 0) {
                     firePtr = id;
                     GameActivity.nativeHudFire(true);
                 } else if (in(x, y, jumpCx, jumpCy, jumpR * 1.15f) && jumpPtr < 0) {
@@ -729,16 +727,16 @@ public class GameActivity extends NativeActivity {
                 } else if (in(x, y, crouchCx, crouchCy, crouchR * 1.15f) && crouchPtr < 0) {
                     crouchPtr = id;
                     GameActivity.nativeHudCrouch(true);
-                } else if (!owner.exploreExternal && in(x, y, reloadCx, reloadCy, reloadR * 1.15f) && reloadPtr < 0) {
+                } else if (in(x, y, reloadCx, reloadCy, reloadR * 1.15f) && reloadPtr < 0) {
                     reloadPtr = id;
                     GameActivity.nativeHudReload();
-                } else if (!owner.exploreExternal && in(x, y, meleeCx, meleeCy, meleeR * 1.15f) && meleePtr < 0) {
+                } else if (in(x, y, meleeCx, meleeCy, meleeR * 1.15f) && meleePtr < 0) {
                     meleePtr = id;
                     GameActivity.nativeHudMelee();
-                } else if (!owner.exploreExternal && in(x, y, swapCx, swapCy, swapR * 1.15f) && swapPtr < 0) {
+                } else if (in(x, y, swapCx, swapCy, swapR * 1.15f) && swapPtr < 0) {
                     swapPtr = id;
                     GameActivity.nativeHudSwap();
-                } else if (!owner.exploreExternal && in(x, y, zoomCx, zoomCy, zoomR * 1.15f) && zoomPtr < 0) {
+                } else if (in(x, y, zoomCx, zoomCy, zoomR * 1.15f) && zoomPtr < 0) {
                     zoomPtr = id;
                     GameActivity.nativeHudZoom();
                 } else if (in(x, y, pauseCx, pauseCy, pauseR * 1.3f)) {
@@ -746,7 +744,7 @@ public class GameActivity extends NativeActivity {
                 } else if (in(x, y, dbgCx, dbgCy, dbgR * 1.25f) && dbgPtr < 0) {
                     dbgPtr = id;
                     GameActivity.nativeHudDebug(0);
-                } else if (!owner.exploreExternal && in(x, y, nadeCx, nadeCy, nadeR * 1.15f) && nadePtr < 0) {
+                } else if (in(x, y, nadeCx, nadeCy, nadeR * 1.15f) && nadePtr < 0) {
                     nadePtr = id;
                     /* In a vehicle with a second gun, NADE is that trigger,
                      * held like FIRE: the Scorpion's machine gun, the
@@ -1040,11 +1038,9 @@ public class GameActivity extends NativeActivity {
             c.drawCircle(dbgCx, dbgCy, dbgR, ring);
             c.drawText("DBG", dbgCx, dbgCy + label.getTextSize() * 0.35f, label);
 
-            if (!owner.exploreExternal) {
-                c.drawCircle(fireCx, fireCy, fireR, fireP);
-                c.drawCircle(fireCx, fireCy, fireR, ring);
-                c.drawText("FIRE", fireCx, fireCy + label.getTextSize() * 0.35f, label);
-            }
+            c.drawCircle(fireCx, fireCy, fireR, fireP);
+            c.drawCircle(fireCx, fireCy, fireR, ring);
+            c.drawText("FIRE", fireCx, fireCy + label.getTextSize() * 0.35f, label);
 
             c.drawCircle(jumpCx, jumpCy, jumpR, jumpP);
             c.drawCircle(jumpCx, jumpCy, jumpR, ring);
@@ -1054,36 +1050,34 @@ public class GameActivity extends NativeActivity {
             c.drawCircle(crouchCx, crouchCy, crouchR, ring);
             c.drawText("CROUCH", crouchCx, crouchCy + label.getTextSize() * 0.35f, label);
 
-            if (!owner.exploreExternal) {
-                c.drawCircle(reloadCx, reloadCy, reloadR, reloadP);
-                c.drawCircle(reloadCx, reloadCy, reloadR, ring);
-                c.drawText("RELOAD", reloadCx, reloadCy + label.getTextSize() * 0.35f, label);
+            c.drawCircle(reloadCx, reloadCy, reloadR, reloadP);
+            c.drawCircle(reloadCx, reloadCy, reloadR, ring);
+            c.drawText("RELOAD", reloadCx, reloadCy + label.getTextSize() * 0.35f, label);
 
-                c.drawCircle(meleeCx, meleeCy, meleeR, meleeP);
-                c.drawCircle(meleeCx, meleeCy, meleeR, ring);
-                c.drawText("MELEE", meleeCx, meleeCy + label.getTextSize() * 0.35f, label);
+            c.drawCircle(meleeCx, meleeCy, meleeR, meleeP);
+            c.drawCircle(meleeCx, meleeCy, meleeR, ring);
+            c.drawText("MELEE", meleeCx, meleeCy + label.getTextSize() * 0.35f, label);
 
-                c.drawCircle(swapCx, swapCy, swapR, swapP);
-                c.drawCircle(swapCx, swapCy, swapR, ring);
-                c.drawText(seatMode >= 2 ? "EXIT" :
-                        seatMode == 1 ? "GET IN" : "SWAP", swapCx, swapCy + label.getTextSize() * 0.35f, label);
+            c.drawCircle(swapCx, swapCy, swapR, swapP);
+            c.drawCircle(swapCx, swapCy, swapR, ring);
+            c.drawText(seatMode >= 2 ? "EXIT" :
+                    seatMode == 1 ? "GET IN" : "SWAP", swapCx, swapCy + label.getTextSize() * 0.35f, label);
 
-                c.drawCircle(zoomCx, zoomCy, zoomR, zoomP);
-                c.drawCircle(zoomCx, zoomCy, zoomR, ring);
-                c.drawText("ZOOM", zoomCx, zoomCy + label.getTextSize() * 0.35f, label);
-                c.drawCircle(nadeCx, nadeCy, nadeR, zoomP);
-                c.drawCircle(nadeCx, nadeCy, nadeR, ring);
-                c.drawText((vehicleMode & 16) != 0 ? "ALT" : "NADE", nadeCx, nadeCy + label.getTextSize() * 0.35f, label);
+            c.drawCircle(zoomCx, zoomCy, zoomR, zoomP);
+            c.drawCircle(zoomCx, zoomCy, zoomR, ring);
+            c.drawText("ZOOM", zoomCx, zoomCy + label.getTextSize() * 0.35f, label);
+            c.drawCircle(nadeCx, nadeCy, nadeR, zoomP);
+            c.drawCircle(nadeCx, nadeCy, nadeR, ring);
+            c.drawText((vehicleMode & 16) != 0 ? "ALT" : "NADE", nadeCx, nadeCy + label.getTextSize() * 0.35f, label);
 
-                /* Ammo, big and bottom-right: loaded / reserve, "--" while the
-                 * magazine is out. */
-                String a = null;
-                try { a = nativeAmmoText(); } catch (Throwable ignored) { }
-                if (a != null && a.length() > 0)
-                    c.drawText(a, getWidth() - 28f, getHeight() * 0.30f, ammo);
+            /* Ammo, big and bottom-right: loaded / reserve, "--" while the
+             * magazine is out. */
+            String a = null;
+            try { a = nativeAmmoText(); } catch (Throwable ignored) { }
+            if (a != null && a.length() > 0)
+                c.drawText(a, getWidth() - 28f, getHeight() * 0.30f, ammo);
 
-                drawGame(c);
-            }
+            drawGame(c);
 
             /* Position readout, so a bug report screenshot carries coordinates.
              * Keep it clear of the camera cutout: the status bar no longer

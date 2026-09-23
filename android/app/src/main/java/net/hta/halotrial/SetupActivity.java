@@ -39,7 +39,6 @@ public class SetupActivity extends Activity {
     private static final int REQ_PICK_BITM = 2;
     private static final int REQ_PICK_SND = 3;
     private static final int REQ_PICK_UI = 4;
-    private static final int REQ_PICK_EXTERNAL = 5;
 
     private TextView status;
     private TextView lanAddress;
@@ -70,19 +69,6 @@ public class SetupActivity extends Activity {
         pickSnd.setOnClickListener(v -> pickFile(REQ_PICK_SND));
         Button pickUi = btn("Pick ui.map (main menu)", 0xFF2B6CF6);
         pickUi.setOnClickListener(v -> pickFile(REQ_PICK_UI));
-        Button pickExternal = btn("Pick Source map package (.oalmap)", 0xFF2B6CF6);
-        pickExternal.setOnClickListener(v -> pickFile(REQ_PICK_EXTERNAL));
-        Button explore = btn("Explore imported map", 0xFF2A7A3A);
-        explore.setOnClickListener(v -> {
-            File source = new File(destDir(), "external.oalmap");
-            if (!source.isFile() || source.length() < 1024) {
-                status.setText("Pick an .oalmap package first.");
-                return;
-            }
-            Intent i = new Intent(this, GameActivity.class);
-            i.putExtra("explore_external", 1);
-            startActivity(i);
-        });
 
         android.content.SharedPreferences prefs = getSharedPreferences("hta", MODE_PRIVATE);
         bots = Math.max(0, Math.min(7, prefs.getInt("bots", 3)));
@@ -129,10 +115,6 @@ public class SetupActivity extends Activity {
         root.addView(pickSnd);
         root.addView(space(10));
         root.addView(pickUi);
-        root.addView(space(10));
-        root.addView(pickExternal);
-        root.addView(space(8));
-        root.addView(explore);
         root.addView(space(10));
         root.addView(botsButton);
         root.addView(space(6));
@@ -183,14 +165,10 @@ public class SetupActivity extends Activity {
         File map = existingMap();
         File bitm = existingBitmaps();
         File snd = existingSounds();
-        File imported = new File(destDir(), "external.oalmap");
-        String importStatus = imported.isFile() && imported.length() > 0
-                ? " Imported map ready (" + (imported.length() / 1024 / 1024) + " MB); tap Explore imported map."
-                : "";
         if (builtInData()) {
             play.setEnabled(true);
             play.setAlpha(1f);
-            status.setText("Trial data is built into this APK. Tap Play." + importStatus);
+            status.setText("Trial data is built into this APK. Tap Play.");
         } else if (map != null) {
             play.setEnabled(true);
             play.setAlpha(1f);
@@ -205,11 +183,11 @@ public class SetupActivity extends Activity {
             msg += new File(destDir(), "ui.map").length() > 0
                     ? " Menu: ui.map." : " No ui.map — no main menu.";
             if (bitm != null && snd != null) msg += " Tap Play.";
-            status.setText(msg + importStatus);
+            status.setText(msg);
         } else {
             play.setEnabled(false);
             play.setAlpha(0.4f);
-            status.setText("No Halo map in app storage yet." + importStatus);
+            status.setText("No map in app storage yet.");
         }
     }
 
@@ -293,8 +271,7 @@ public class SetupActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQ_PICK_MAP && requestCode != REQ_PICK_BITM
-                && requestCode != REQ_PICK_SND && requestCode != REQ_PICK_UI
-                && requestCode != REQ_PICK_EXTERNAL) return;
+                && requestCode != REQ_PICK_SND && requestCode != REQ_PICK_UI) return;
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
             status.setText("Pick cancelled.");
             return;
@@ -302,7 +279,6 @@ public class SetupActivity extends Activity {
         String name = (requestCode == REQ_PICK_BITM) ? "bitmaps.map"
                     : (requestCode == REQ_PICK_SND)  ? "sounds.map"
                     : (requestCode == REQ_PICK_UI)   ? "ui.map"
-                    : (requestCode == REQ_PICK_EXTERNAL) ? "external.oalmap"
                     : "bloodgulch.map";
         Uri uri = data.getData();
         File dest = new File(destDir(), name);

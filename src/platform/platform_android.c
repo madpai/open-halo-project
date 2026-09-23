@@ -49,7 +49,6 @@
 #include "../game/menu.h"
 #include "../asset/items.h"
 #include "../asset/strings.h"
-#include "../asset/external_map.h"
 
 #include <android/log.h>
 #include <android/input.h>
@@ -124,7 +123,6 @@ typedef struct {
     uint8_t  *sounds_data;
     size_t    sounds_size;
     bool      map_loaded;
-    bool      explore_external;
     char      status[256];
     /* What was mapped, for unmapping: an APK asset maps from a page
      * boundary before its data, so the pointer handed out is not the base. */
@@ -1258,66 +1256,6 @@ static void start_gfx(hta_android *s);
 static void stop_gfx(hta_android *s);
 static void rebuild_gfx_if_size_changed(hta_android *s);
 static void game_gpu_upload(hta_android *s);
-
-/* A separate walkable Source-map mode uses the same renderer and collision
- * code, without constructing a Halo scenario or starting a match. */
-static bool load_external_map(hta_android *s)
-{
-    const char *dir = s->app->activity->externalDataPath;
-    if (!dir) dir = s->app->activity->internalDataPath;
-    char path[1024], err[HTA_ERRLEN];
-    if (!dir || snprintf(path, sizeof(path), "%s/external.oalmap", dir) >= (int)sizeof(path)) {
-        snprintf(s->status, sizeof(s->status), "external map path unavailable");
-        return false;
-    }
-    hta_external_map external;
-    if (!hta_external_map_load(path, &external, err, sizeof(err))) {
-        snprintf(s->status, sizeof(s->status), "external map: %s", err);
-        return false;
-    }
-    if (!hta_collision_build(&s->col, &external.mesh)) {
-        hta_external_map_free(&external);
-        snprintf(s->status, sizeof(s->status), "external map collision failed");
-        return false;
-    }
-    s->mesh = external.mesh;
-    memset(&external.mesh, 0, sizeof(external.mesh));
-    s->have_mesh = s->map_loaded = true;
-    hta_player_init(&s->player);
-    hta_camera_init(&s->cam);
-    if (external.spawn_count) {
-        uint32_t chosen = 0;
-        float ground = 0.0f;
-        for (uint32_t i = 0; i < external.spawn_count; i++) {
-            const float *p = external.spawns[i].position;
-            if (hta_collision_ground(&s->col, p[0], p[1], p[2] + 1.0f, &ground)) {
-                chosen = i;
-                break;
-            }
-        }
-        hta_player_spawn(&s->player, &external.spawns[chosen]);
-        const float *p = external.spawns[chosen].position;
-        if (hta_collision_ground(&s->col, p[0], p[1], p[2] + 1.0f, &ground)) {
-            s->player.pos[2] = ground;
-            s->player.on_ground = true;
-        }
-        s->cam.yaw = external.spawns[chosen].facing;
-    } else {
-        for (int axis = 0; axis < 3; axis++)
-            s->player.pos[axis] = 0.5f * (s->mesh.bounds_min[axis] + s->mesh.bounds_max[axis]);
-        s->player.pos[2] = s->mesh.bounds_max[2] + 1.0f;
-    }
-    memcpy(s->cam.pos, s->player.pos, sizeof(s->cam.pos));
-    s->cam.pos[2] += s->player.eye_height;
-    s->scene.light_dir[0] = 0.35f; s->scene.light_dir[1] = 0.4f; s->scene.light_dir[2] = 0.85f;
-    s->scene.light_color[0] = s->scene.light_color[1] = s->scene.light_color[2] = 1.0f;
-    s->scene.ambient[0] = s->scene.ambient[1] = s->scene.ambient[2] = 0.7f;
-    s->scene.clear[0] = 0.1f; s->scene.clear[1] = 0.15f; s->scene.clear[2] = 0.23f;
-    snprintf(s->status, sizeof(s->status), "exploring external map");
-    hta_log("[external] loaded %u triangles, %u spawns", s->mesh.index_count / 3, external.spawn_count);
-    free(external.spawns);
-    return true;
-}
 static void game_gpu_free(hta_android *s);
 
 static bool load_map(hta_android *s)
@@ -3995,7 +3933,7 @@ static void on_cmd(struct android_app *app, int32_t cmd)
                 atomic_store(&g_menu_mode, 0);
             }
             if (!s->map_loaded && !s->menu_mode) {
-                if (!(s->explore_external ? load_external_map(s) : load_map(s))) {
+                if (!load_map(s)) {
                     hta_log("[app] running without map data: %s", s->status);
                     /* Unmistakable on-screen signal: magenta means "no data".
                      * Sky blue means the map loaded. No text renderer yet. */
@@ -4413,8 +4351,6 @@ void android_main(struct android_app *app)
     read_net_host(app,net_host,&net_hosting);
     /* The setup screen asks for the menu first; a LAN launch goes straight in. */
     state.menu_mode = intent_int(app, "menu", 0) != 0 && !net_host[0];
-    state.explore_external = intent_int(app, "explore_external", 0) != 0;
-    if (state.explore_external) state.menu_mode = false;
     atomic_store(&g_paused, 0);
     atomic_store(&g_damage_flash, 0);
     atomic_store(&g_net_status, 0);
@@ -4480,33 +4416,6 @@ void android_main(struct android_app *app)
             state.menu_go = false;
             menu_leave(&state);
             state.last_time = hta_time_seconds();   /* the load is not a frame */
-            continue;
-        }
-
-        if (state.explore_external) {
-            hta_player_input walk;
-            gather_input(&state, &walk, dt);
-            if (atomic_load(&g_paused)) {
-                memset(&walk, 0, sizeof(walk));
-                dt = 0.0f;
-            }
-            if (state.map_loaded && state.col.built) {
-                hta_player_update(&state.player, &state.cam, &state.col, &walk,
-                                  dt > 0.05f ? 0.05f : dt);
-                snprintf(g_debug_text, sizeof(g_debug_text),
-                         "external map  %.2f %.2f %.2f  %s",
-                         state.player.pos[0], state.player.pos[1], state.player.pos[2],
-                         state.player.on_ground ? "ground" : "air");
-            } else snprintf(g_debug_text, sizeof(g_debug_text), "%s", state.status);
-            if (state.gfx) {
-                if (!hta_gfx_draw(state.gfx, &state.cam, &state.scene, state.gpu_mesh,
-                                  NULL, NULL, NULL, 0, NULL, NULL)) {
-                    hta_log("[external] surface lost; rebuilding renderer");
-                    stop_gfx(&state);
-                    if (app->window) start_gfx(&state);
-                }
-                state.frames++;
-            }
             continue;
         }
 
